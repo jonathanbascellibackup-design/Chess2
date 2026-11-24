@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scacchi Casuali Reali (Multiplayer)</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #12151c;
+      color: #f1f5f9;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px;
+      gap: 16px;
+    }
+    .controls, .status {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: center;
+    }
+    button {
+      background: #2563eb;
+      color: white;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button:disabled {
+      background: #475569;
+      cursor: not-allowed;
+    }
+    .board {
+      display: grid;
+      grid-template-columns: repeat(8, 60px);
+      grid-template-rows: repeat(8, 60px);
+      border: 3px solid #334155;
+      user-select: none;
+    }
+    .cell {
+      width: 60px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 38px;
+      cursor: pointer;
+    }
+    .light { background: #e2e8f0; color: #0f172a; }
+    .dark  { background: #475569; color: #0f172a; }
+    .selected { outline: 3px solid #f59e0b; outline-offset: -3px; }
+    .users-box {
+      background: #1e293b;
+      padding: 12px 16px;
+      border-radius: 10px;
+      min-width: 300px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Scacchi Reali vs Utente Casuale</h1>
+
+  <div class="status">
+    <span id="myId">ID: -</span> |
+    <span id="matchStatus">Connessione in corso...</span>
+  </div>
+
+  <div class="controls">
+    <button id="findMatchBtn" disabled>Cerca e sfida un utente a caso</button>
+  </div>
+
+  <div class="users-box">
+    <strong>Utenti online rilevati in tempo reale:</strong>
+    <ul id="onlineList"></ul>
+  </div>
+
+  <div id="board" class="board"></div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/13.4.0/firebase-app.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/13.4.0/firebase-analytics.js";
+    import {
+      getDatabase,
+      ref,
+      set,
+      update,
+      onValue,
+      onDisconnect
+    } from "https://www.gstatic.com/firebasejs/13.4.0/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyAICm1U1cItT3cdD8hv85NsGCoB1-PMSDE",
+      authDomain: "scacchi-belli-3ee35.firebaseapp.com",
+      databaseURL: "https://scacchi-belli-3ee35-default-rtdb.firebaseio.com",
+      projectId: "scacchi-belli-3ee35",
+      storageBucket: "scacchi-belli-3ee35.firebasestorage.app",
+      messagingSenderId: "1082352831745",
+      appId: "1:1082352831745:web:70ed1d8ea31d308be4df00",
+      measurementId: "G-03VB17LH2D"
+    };
+
+    const PIECE_GLYPHS = {
+      wK: "♔", wQ: "♕", wR: "♖", wB: "♗", wN: "♘", wP: "♙",
+      bK: "♚", bQ: "♛", bR: "♜", bB: "♝", bN: "♞", bP: "♟"
+    };
+
+    const myId = "user_" + Math.random().toString(36).slice(2, 8);
+    document.getElementById("myId").textContent = "Tu: " + myId;
+
+    let db = null;
+    let onlineUsers = {};
+    let currentGameId = null;
+    let myColor = null;
+    let gameState = null;
+    let selectedSquare = null;
+    let unsubscribeGame = null;
+
+    function generateRandomBoard() {
+      const board = Array.from({ length: 8 }, () => Array(8).fill(null));
+      const squares = [];
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) squares.push([r, c]);
+      }
+      for (let i = squares.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [squares[i], squares[j]] = [squares[j], squares[i]];
+      }
+
+      const pool = ["wK", "bK", "wQ", "bQ", "wR", "wR", "bR", "bR", "wB", "bB", "wN", "bN", "wP", "wP", "bP", "bP"];
+      pool.forEach((piece, idx) => {
+        const [r, c] = squares[idx];
+        board[r][c] = piece;
+      });
+      return board;
+    }
+
+    function renderBoard() {
+      const boardEl = document.getElementById("board");
+      boardEl.innerHTML = "";
+      const grid = gameState ? gameState.board : generateRandomBoard();
+
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+          const cell = document.createElement("div");
+          cell.className = "cell " + ((r + c) % 2 === 0 ? "light" : "dark");
+          if (selectedSquare && selectedSquare[0] === r && selectedSquare[1] === c) {
+            cell.classList.add("selected");
+          }
+          const piece = grid[r][c];
+          if (piece) cell.textContent = PIECE_GLYPHS[piece] || "";
+          cell.addEventListener("click", () => handleSquareClick(r, c));
+          boardEl.appendChild(cell);
+        }
+      }
+    }
+
+    function isOwnPiece(piece) {
+      return piece && myColor && piece.startsWith(myColor);
+    }
+
+    async function handleSquareClick(r, c) {
+      if (!gameState || !currentGameId || !myColor) return;
+      if (gameState.turn !== myColor) return;
+
+      const piece = gameState.board[r][c];
+
+      if (!selectedSquare) {
+        if (isOwnPiece(piece)) {
+          selectedSquare = [r, c];
+          renderBoard();
+        }
+        return;
+      }
+
+      const [sr, sc] = selectedSquare;
+      if (sr === r && sc === c) {
+        selectedSquare = null;
+        renderBoard();
+        return;
+      }
+
+      if (isOwnPiece(piece)) {
+        selectedSquare = [r, c];
+        renderBoard();
+        return;
+      }
+
+      const nextBoard = gameState.board.map(row => [...row]);
+      nextBoard[r][c] = nextBoard[sr][sc];
+      nextBoard[sr][sc] = null;
+
+      const nextTurn = gameState.turn === "w" ? "b" : "w";
+      selectedSquare = null;
+
+      await update(ref(db, "games/" + currentGameId), {
+        board: nextBoard,
+        turn: nextTurn,
+        lastMove: { from: [sr, sc], to: [r, c], by: myId, at: Date.now() }
+      });
+    }
+
+    function updateOnlineList() {
+      const listEl = document.getElementById("onlineList");
+      listEl.innerHTML = "";
+      const ids = Object.keys(onlineUsers);
+
+      ids.forEach(id => {
+        const li = document.createElement("li");
+        const info = onlineUsers[id];
+        li.textContent = `${id} ${id === myId ? "(Tu)" : ""} — ${info.inGame ? "In partita" : "Disponibile"}`;
+        listEl.appendChild(li);
+      });
+
+      const availableOpponents = ids.filter(id => id !== myId && !onlineUsers[id]?.inGame);
+      document.getElementById("findMatchBtn").disabled = availableOpponents.length === 0 || Boolean(currentGameId);
+    }
+
+    function subscribeToGame(gameId) {
+      if (unsubscribeGame) unsubscribeGame();
+      currentGameId = gameId;
+      update(ref(db, "presence/" + myId), { inGame: true, gameId });
+
+      unsubscribeGame = onValue(ref(db, "games/" + gameId), snap => {
+        const data = snap.val();
+        if (!data) return;
+        gameState = data;
+        myColor = data.white === myId ? "w" : (data.black === myId ? "b" : null);
+        const opp = myColor === "w" ? data.black : data.white;
+        const turnLabel = data.turn === myColor ? "IL TUO TURNO" : "Turno dell'avversario";
+        document.getElementById("matchStatus").textContent =
+          `Partita vs ${opp} | Tu sei ${myColor === "w" ? "Bianco" : "Nero"} | ${turnLabel}`;
+        renderBoard();
+      });
+    }
+
+    async function initMultiplayer() {
+      const app = initializeApp(firebaseConfig);
+      if (location.protocol !== "file:") {
+        getAnalytics(app);
+      }
+      db = getDatabase(app);
+
+      const myPresenceRef = ref(db, "presence/" + myId);
+      await set(myPresenceRef, { joinedAt: Date.now(), inGame: false, gameId: null });
+      await onDisconnect(myPresenceRef).remove();
+
+      onValue(ref(db, "presence"), snap => {
+        onlineUsers = snap.val() || {};
+        updateOnlineList();
+
+        const me = onlineUsers[myId];
+        if (me && me.inGame && me.gameId && !currentGameId) {
+          subscribeToGame(me.gameId);
+        }
+      });
+
+      document.getElementById("findMatchBtn").addEventListener("click", async () => {
+        const candidates = Object.keys(onlineUsers).filter(
+          id => id !== myId && !onlineUsers[id]?.inGame
+        );
+        if (candidates.length === 0) return;
+
+        const randomOpponent = candidates[Math.floor(Math.random() * candidates.length)];
+        const gameId = "game_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6);
+        const iAmWhite = Math.random() < 0.5;
+
+        const initialGame = {
+          white: iAmWhite ? myId : randomOpponent,
+          black: iAmWhite ? randomOpponent : myId,
+          turn: "w",
+          board: generateRandomBoard(),
+          createdAt: Date.now()
+        };
+
+        await set(ref(db, "games/" + gameId), initialGame);
+        await update(ref(db, "presence/" + randomOpponent), { inGame: true, gameId });
+        subscribeToGame(gameId);
+      });
+
+      document.getElementById("matchStatus").textContent = "Connesso — in attesa di un altro giocatore...";
+      renderBoard();
+    }
+
+    initMultiplayer();
+  </script>
+</body>
+</html>
