@@ -3,85 +3,239 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Scacchi Casuali Reali (Multiplayer)</title>
+  <title>Scacchi Reali Multiplayer — Regole Complete & Editor</title>
   <style>
+    * { box-sizing: border-box; }
     body {
       font-family: system-ui, -apple-system, sans-serif;
-      background: #12151c;
+      background: #0f172a;
       color: #f1f5f9;
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 24px;
-      gap: 16px;
+      padding: 18px 12px 36px;
+      gap: 12px;
+      margin: 0;
     }
-    .controls, .status {
+    h1 {
+      margin: 0;
+      font-size: 1.4rem;
+      text-align: center;
+    }
+    .status-bar {
+      background: #1e293b;
+      border: 1px solid #334155;
+      padding: 10px 14px;
+      border-radius: 10px;
+      width: min(94vw, 500px);
+      text-align: center;
+      font-size: 14px;
+      line-height: 1.45;
+    }
+    .controls {
       display: flex;
       flex-wrap: wrap;
-      gap: 10px;
+      gap: 8px;
       align-items: center;
       justify-content: center;
+      width: min(94vw, 500px);
+    }
+    select, button {
+      font-family: inherit;
+      font-size: 14px;
+      border-radius: 8px;
+      padding: 9px 13px;
+      border: 1px solid #334155;
+    }
+    select {
+      background: #1e293b;
+      color: #f1f5f9;
     }
     button {
       background: #2563eb;
-      color: white;
+      color: #ffffff;
       border: none;
-      padding: 10px 16px;
-      border-radius: 8px;
       cursor: pointer;
       font-weight: 600;
     }
+    button.secondary {
+      background: #334155;
+    }
+    button.success {
+      background: #16a34a;
+    }
+    button.danger {
+      background: #dc2626;
+    }
     button:disabled {
       background: #475569;
+      opacity: 0.65;
       cursor: not-allowed;
     }
-    .board {
-      display: grid;
-      grid-template-columns: repeat(8, 56px);
-      grid-template-rows: repeat(8, 56px);
-      border: 3px solid #334155;
-      user-select: none;
+    .editor-panel {
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+      background: #1e293b;
+      border: 1px solid #f59e0b;
+      padding: 12px;
+      border-radius: 10px;
+      width: min(94vw, 500px);
+      font-size: 13px;
     }
-    .cell {
-      width: 56px;
-      height: 56px;
+    .editor-panel.active {
+      display: flex;
+    }
+    .palette {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: center;
+    }
+    .pal-btn {
+      width: 38px;
+      height: 38px;
+      padding: 0;
+      font-size: 24px;
+      background: #0f172a;
+      border: 1px solid #475569;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 36px;
+    }
+    .pal-btn.active {
+      border: 2px solid #f59e0b;
+      background: #334155;
+    }
+    .board {
+      display: grid;
+      grid-template-columns: repeat(8, minmax(36px, 58px));
+      grid-template-rows: repeat(8, minmax(36px, 58px));
+      border: 3px solid #334155;
+      user-select: none;
+      background: #334155;
+    }
+    .cell {
+      width: 100%;
+      height: 100%;
+      aspect-ratio: 1 / 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: clamp(22px, 5.6vw, 36px);
+      line-height: 1;
       cursor: pointer;
+      position: relative;
     }
     .light { background: #e2e8f0; color: #0f172a; }
-    .dark  { background: #475569; color: #0f172a; }
-    .selected { outline: 3px solid #f59e0b; outline-offset: -3px; }
-    .users-box {
+    .dark  { background: #64748b; color: #0f172a; }
+    .selected {
+      background: #fde047 !important;
+      outline: 3px solid #ca8a04;
+      outline-offset: -3px;
+    }
+    .last-move {
+      box-shadow: inset 0 0 0 3px rgba(59, 130, 246, 0.75);
+    }
+    .in-check {
+      background: #ef4444 !important;
+    }
+    .legal-dot::after {
+      content: "";
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: rgba(15, 23, 42, 0.35);
+      position: absolute;
+    }
+    .legal-capture::after {
+      content: "";
+      width: 82%;
+      height: 82%;
+      border-radius: 50%;
+      border: 3px solid rgba(220, 38, 38, 0.75);
+      position: absolute;
+    }
+    .panel-box {
       background: #1e293b;
-      padding: 12px 16px;
+      padding: 12px 14px;
       border-radius: 10px;
-      min-width: 280px;
+      width: min(94vw, 500px);
       font-size: 14px;
     }
+    .panel-box ul {
+      margin: 6px 0 0 18px;
+      padding: 0;
+    }
+    .moves-log {
+      margin-top: 6px;
+      max-height: 90px;
+      overflow-y: auto;
+      font-family: ui-monospace, monospace;
+      font-size: 13px;
+      color: #cbd5e1;
+      background: #0f172a;
+      padding: 8px;
+      border-radius: 6px;
+    }
     .err { color: #f87171; font-weight: 600; }
+    .win { color: #4ade80; font-weight: 700; }
   </style>
 </head>
 <body>
-  <h1>Scacchi Reali vs Utente Casuale</h1>
+  <h1>Scacchi Reali Multiplayer</h1>
 
-  <div class="status">
-    <span id="myId">ID: -</span> |
-    <span id="matchStatus">Connessione in corso...</span>
+  <div class="status-bar">
+    <div><strong id="myId">Tu: -</strong></div>
+    <div id="matchStatus">Connessione in corso...</div>
   </div>
 
-  <div class="controls">
+  <!-- Controlli pre-partita -->
+  <div class="controls" id="lobbyControls">
+    <select id="presetSelect" title="Scegli disposizione iniziale">
+      <option value="random">Disposizione: Casuale</option>
+      <option value="classic">Disposizione: Classica Standard</option>
+      <option value="sicilian">Apertura: Difesa Siciliana (1.e4 c5)</option>
+      <option value="queens_gambit">Apertura: Gambetto di Donna (1.d4 d5 2.c4)</option>
+      <option value="italian">Apertura: Partita Italiana</option>
+      <option value="ruy_lopez">Apertura: Partita Spagnola</option>
+      <option value="custom" disabled>Disposizione: Personalizzata (pronta)</option>
+    </select>
+
+    <button id="toggleEditorBtn" class="secondary">Crea la tua disposizione</button>
     <button id="findMatchBtn" disabled>Cerca e sfida un utente a caso</button>
+    <button id="leaveGameBtn" class="danger" style="display:none;">Esci dalla partita</button>
   </div>
 
-  <div class="users-box">
+  <!-- Pannello Editor Scacchiera Personalizzata -->
+  <div class="editor-panel" id="editorPanel">
+    <div>
+      <strong>Modalità Editor Scacchiera:</strong>
+      tocca un pezzo sulla scacchiera per spostarlo su un'altra casa, oppure scegli un pezzo qui sotto per posizionarlo/rimuoverlo.
+    </div>
+    <div class="palette" id="piecePalette"></div>
+    <div class="controls">
+      <select id="editorTurnSelect">
+        <option value="w">Inizia il Bianco</option>
+        <option value="b">Inizia il Nero</option>
+      </select>
+      <button id="editorClearBtn" class="secondary">Svuota (solo i 2 Re)</button>
+      <button id="editorRandomBtn" class="secondary">Rimescola</button>
+      <button id="editorSaveBtn" class="success">Salva e Gioca</button>
+    </div>
+  </div>
+
+  <div id="board" class="board" aria-label="Scacchiera 8 per 8"></div>
+
+  <div class="panel-box">
     <strong>Utenti online rilevati in tempo reale:</strong>
     <ul id="onlineList"></ul>
   </div>
 
-  <div id="board" class="board"></div>
+  <div class="panel-box" id="movesPanel" style="display:none;">
+    <strong>Cronologia mosse:</strong>
+    <div class="moves-log" id="movesLog">Nessuna mossa ancora.</div>
+  </div>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/13.4.0/firebase-app.js";
@@ -93,6 +247,7 @@
       onValue,
       onDisconnect
     } from "https://www.gstatic.com/firebasejs/13.4.0/firebase-database.js";
+    import { Chess } from "https://cdn.jsdelivr.net/npm/chess.js@1.0.0-beta.8/+esm";
 
     const firebaseConfig = {
       apiKey: "AIzaSyAICm1U1cItT3cdD8hv85NsGCoB1-PMSDE",
@@ -105,9 +260,20 @@
       measurementId: "G-03VB17LH2D"
     };
 
-    const PIECE_GLYPHS = {
+    const GLYPHS = {
       wK: "♔", wQ: "♕", wR: "♖", wB: "♗", wN: "♘", wP: "♙",
       bK: "♚", bQ: "♛", bR: "♜", bB: "♝", bN: "♞", bP: "♟"
+    };
+
+    const FILES = ["a", "b", "c", "d", "e", "f", "g", "h"];
+
+    // FEN ufficiali delle aperture/disposizioni famose
+    const PRESETS = {
+      classic: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      sicilian: "rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq c6 0 2",
+      queens_gambit: "rnbqkbnr/ppp1pppp/8/3p4/2PP4/8/PP2PPPP/RNBQKBNR b KQkq c3 0 2",
+      italian: "r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R b KQkq - 3 3",
+      ruy_lopez: "r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R b KQkq - 3 3"
     };
 
     const myId = "user_" + Math.random().toString(36).slice(2, 8);
@@ -118,97 +284,379 @@
     let currentGameId = null;
     let myColor = null;
     let gameState = null;
-    let selectedSquare = null;
     let unsubscribeGame = null;
 
-    function setStatus(msg, isError = false) {
+    // Stato scacchiera e selezione
+    let chess = new Chess();
+    let selectedSq = null;      // es. "e2"
+    let legalTargets = [];      // es. [{ to: "e4", captured: undefined }, ...]
+    let customFen = null;
+
+    // Stato Editor
+    let editorMode = false;
+    let editorGrid = null;      // 8x8 di codici "wQ", "bP", null
+    let editorSelectedSq = null;
+    let paletteTool = "MOVE";   // "MOVE", "ERASE", o codice pezzo ("wQ", ecc.)
+
+    function setStatus(msg, cls = "") {
       const el = document.getElementById("matchStatus");
       el.textContent = msg;
-      el.className = isError ? "err" : "";
+      el.className = cls;
     }
 
-    function generateRandomBoard() {
-      const board = Array.from({ length: 8 }, () => Array(8).fill(null));
-      const squares = [];
-      for (let r = 0; r < 8; r++) {
-        for (let c = 0; c < 8; c++) squares.push([r, c]);
-      }
-      for (let i = squares.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [squares[i], squares[j]] = [squares[j], squares[i]];
-      }
+    function rcToSquare(r, c) {
+      return FILES[c] + (8 - r);
+    }
 
-      const pool = ["wK", "bK", "wQ", "bQ", "wR", "wR", "bR", "bR", "wB", "bB", "wN", "bN", "wP", "wP", "bP", "bP"];
-      pool.forEach((piece, idx) => {
-        const [r, c] = squares[idx];
-        board[r][c] = piece;
+    function squareToRc(sq) {
+      const c = FILES.indexOf(sq[0]);
+      const r = 8 - parseInt(sq[1], 10);
+      return [r, c];
+    }
+
+    function fenToGrid(fen) {
+      const temp = new Chess(fen);
+      const raw = temp.board();
+      return raw.map(row =>
+        row.map(cell => (cell ? cell.color + cell.type.toUpperCase() : null))
+      );
+    }
+
+    // Calcola automaticamente i diritti di arrocco se Re e Torri sono sulle case standard
+    function computeCastlingRights(grid) {
+      let rights = "";
+      if (grid[7][4] === "wK") {
+        if (grid[7][7] === "wR") rights += "K";
+        if (grid[7][0] === "wR") rights += "Q";
+      }
+      if (grid[0][4] === "bK") {
+        if (grid[0][7] === "bR") rights += "k";
+        if (grid[0][0] === "bR") rights += "q";
+      }
+      return rights || "-";
+    }
+
+    function gridToFen(grid, turn = "w") {
+      const rows = [];
+      for (let r = 0; r < 8; r++) {
+        let rowStr = "";
+        let empty = 0;
+        for (let c = 0; c < 8; c++) {
+          const p = grid[r][c];
+          if (!p) {
+            empty++;
+          } else {
+            if (empty > 0) {
+              rowStr += empty;
+              empty = 0;
+            }
+            const letter = p[1];
+            rowStr += p[0] === "w" ? letter.toUpperCase() : letter.toLowerCase();
+          }
+        }
+        if (empty > 0) rowStr += empty;
+        rows.push(rowStr);
+      }
+      const castling = computeCastlingRights(grid);
+      return `${rows.join("/")} ${turn} ${castling} - 0 1`;
+    }
+
+    function generateRandomValidFen() {
+      // Genera una posizione casuale valida (1 Re per lato, nessun pedone su 1a/8a traversa,
+      // e chi non ha il turno non può essere già sotto scacco)
+      for (let attempt = 0; attempt < 150; attempt++) {
+        const grid = Array.from({ length: 8 }, () => Array(8).fill(null));
+        const allSquares = [];
+        const pawnSquares = [];
+        for (let r = 0; r < 8; r++) {
+          for (let c = 0; c < 8; c++) {
+            allSquares.push([r, c]);
+            if (r >= 1 && r <= 6) pawnSquares.push([r, c]);
+          }
+        }
+
+        const shuffle = arr => {
+          for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+          }
+        };
+
+        shuffle(pawnSquares);
+        const pawns = ["wP", "wP", "wP", "bP", "bP", "bP"];
+        const used = new Set();
+        pawns.forEach((p, i) => {
+          const [r, c] = pawnSquares[i];
+          grid[r][c] = p;
+          used.add(`${r},${c}`);
+        });
+
+        shuffle(allSquares);
+        const freeSquares = allSquares.filter(([r, c]) => !used.has(`${r},${c}`));
+        const pieces = ["wK", "bK", "wQ", "bQ", "wR", "wR", "bR", "bR", "wB", "bB", "wN", "bN"];
+        pieces.forEach((p, i) => {
+          const [r, c] = freeSquares[i];
+          grid[r][c] = p;
+        });
+
+        const fen = gridToFen(grid, "w");
+        try {
+          const testChess = new Chess(fen);
+          if (!testChess.isGameOver()) {
+            return fen;
+          }
+        } catch (_) {
+          // Riprova se i due Re risultano adiacenti
+        }
+      }
+      return PRESETS.classic;
+    }
+
+    function getSelectedStartFen() {
+      const choice = document.getElementById("presetSelect").value;
+      if (choice === "custom" && customFen) return customFen;
+      if (choice === "random") return generateRandomValidFen();
+      return PRESETS[choice] || PRESETS.classic;
+    }
+
+    function buildPalette() {
+      const pal = document.getElementById("piecePalette");
+      pal.innerHTML = "";
+      const tools = [
+        { id: "MOVE", label: "✋", title: "Sposta pezzo sulla scacchiera" },
+        { id: "ERASE", label: "🗑️", title: "Rimuovi pezzo" },
+        ...Object.keys(GLYPHS).map(code => ({ id: code, label: GLYPHS[code], title: code }))
+      ];
+
+      tools.forEach(t => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "pal-btn" + (paletteTool === t.id ? " active" : "");
+        btn.textContent = t.label;
+        btn.title = t.title;
+        btn.addEventListener("click", () => {
+          paletteTool = t.id;
+          editorSelectedSq = null;
+          buildPalette();
+          renderBoard();
+        });
+        pal.appendChild(btn);
       });
-      return board;
+    }
+
+    function findKingSquare(chessInstance, color) {
+      const b = chessInstance.board();
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+          const cell = b[r][c];
+          if (cell && cell.type === "k" && cell.color === color) {
+            return rcToSquare(r, c);
+          }
+        }
+      }
+      return null;
     }
 
     function renderBoard() {
       const boardEl = document.getElementById("board");
       boardEl.innerHTML = "";
-      const grid = gameState ? gameState.board : generateRandomBoard();
 
-      for (let r = 0; r < 8; r++) {
-        for (let c = 0; c < 8; c++) {
+      const grid = editorMode ? editorGrid : fenToGrid(chess.fen());
+      const checkedKingSq = (!editorMode && chess.inCheck())
+        ? findKingSquare(chess, chess.turn())
+        : null;
+      const lastMove = (!editorMode && gameState && gameState.lastMove) ? gameState.lastMove : null;
+
+      // Orienta la scacchiera dal lato del giocatore se è Nero in partita
+      const flip = Boolean(currentGameId && myColor === "b" && !editorMode);
+
+      for (let vr = 0; vr < 8; vr++) {
+        for (let vc = 0; vc < 8; vc++) {
+          const r = flip ? 7 - vr : vr;
+          const c = flip ? 7 - vc : vc;
+          const sq = rcToSquare(r, c);
+
           const cell = document.createElement("div");
           cell.className = "cell " + ((r + c) % 2 === 0 ? "light" : "dark");
-          if (selectedSquare && selectedSquare[0] === r && selectedSquare[1] === c) {
-            cell.classList.add("selected");
+
+          if (editorMode) {
+            if (editorSelectedSq && editorSelectedSq[0] === r && editorSelectedSq[1] === c) {
+              cell.classList.add("selected");
+            }
+          } else {
+            if (selectedSq === sq) cell.classList.add("selected");
+            if (lastMove && (lastMove.from === sq || lastMove.to === sq)) {
+              cell.classList.add("last-move");
+            }
+            if (checkedKingSq === sq) {
+              cell.classList.add("in-check");
+            }
+            const targetInfo = legalTargets.find(m => m.to === sq);
+            if (targetInfo) {
+              cell.classList.add(targetInfo.captured ? "legal-capture" : "legal-dot");
+            }
           }
+
           const piece = grid[r][c];
-          if (piece) cell.textContent = PIECE_GLYPHS[piece] || "";
-          cell.addEventListener("click", () => handleSquareClick(r, c));
+          if (piece) cell.textContent = GLYPHS[piece] || "";
+
+          cell.addEventListener("click", () => {
+            if (editorMode) {
+              handleEditorClick(r, c);
+            } else {
+              handlePlayClick(sq);
+            }
+          });
+
           boardEl.appendChild(cell);
         }
       }
     }
 
-    function isOwnPiece(piece) {
-      return piece && myColor && piece.startsWith(myColor);
-    }
+    function handleEditorClick(r, c) {
+      if (paletteTool === "ERASE") {
+        editorGrid[r][c] = null;
+        renderBoard();
+        return;
+      }
 
-    async function handleSquareClick(r, c) {
-      if (!gameState || !currentGameId || !myColor) return;
-      if (gameState.turn !== myColor) return;
+      if (paletteTool !== "MOVE") {
+        // Posiziona o toglie lo stesso pezzo dalla tavolozza
+        editorGrid[r][c] = editorGrid[r][c] === paletteTool ? null : paletteTool;
+        renderBoard();
+        return;
+      }
 
-      const piece = gameState.board[r][c];
-
-      if (!selectedSquare) {
-        if (isOwnPiece(piece)) {
-          selectedSquare = [r, c];
+      // Modalità MOVE: tocca un pezzo e tocca la casa di destinazione
+      if (!editorSelectedSq) {
+        if (editorGrid[r][c]) {
+          editorSelectedSq = [r, c];
           renderBoard();
         }
         return;
       }
 
-      const [sr, sc] = selectedSquare;
+      const [sr, sc] = editorSelectedSq;
       if (sr === r && sc === c) {
-        selectedSquare = null;
+        editorSelectedSq = null;
         renderBoard();
         return;
       }
 
-      if (isOwnPiece(piece)) {
-        selectedSquare = [r, c];
+      editorGrid[r][c] = editorGrid[sr][sc];
+      editorGrid[sr][sc] = null;
+      editorSelectedSq = null;
+      renderBoard();
+    }
+
+    async function handlePlayClick(sq) {
+      if (!gameState || !currentGameId || !myColor) {
+        setStatus("Scegli una disposizione e premi 'Cerca e sfida un utente a caso'.");
+        return;
+      }
+      if (chess.isGameOver()) return;
+      if (chess.turn() !== myColor) {
+        setStatus("Attendi la mossa dell'avversario.");
+        return;
+      }
+
+      const pieceOnSq = chess.get(sq);
+
+      // Se clicchi un tuo pezzo, selezionalo e mostra le mosse legali (incluso arrocco)
+      if (pieceOnSq && pieceOnSq.color === myColor) {
+        if (selectedSq === sq) {
+          selectedSq = null;
+          legalTargets = [];
+        } else {
+          selectedSq = sq;
+          legalTargets = chess.moves({ square: sq, verbose: true });
+        }
         renderBoard();
         return;
       }
 
-      const nextBoard = gameState.board.map(row => [...row]);
-      nextBoard[r][c] = nextBoard[sr][sc];
-      nextBoard[sr][sc] = null;
+      if (!selectedSq) return;
 
-      const nextTurn = gameState.turn === "w" ? "b" : "w";
-      selectedSquare = null;
-
-      await update(ref(db, "games/" + currentGameId), {
-        board: nextBoard,
-        turn: nextTurn,
-        lastMove: { from: [sr, sc], to: [r, c], by: myId, at: Date.now() }
+      // Prova a eseguire la mossa tramite chess.js (valida regole, scacco, arrocco, en passant)
+      const moveObj = chess.move({
+        from: selectedSq,
+        to: sq,
+        promotion: "q"
       });
+
+      if (!moveObj) {
+        setStatus("Mossa non valida secondo le regole degli scacchi.", "err");
+        return;
+      }
+
+      selectedSq = null;
+      legalTargets = [];
+      const nextFen = chess.fen();
+      const history = gameState.history ? [...gameState.history, moveObj.san] : [moveObj.san];
+      const resultText = evaluateGameEnd(chess);
+
+      renderBoard();
+      updateMovesLog(history);
+
+      try {
+        await update(ref(db, "games/" + currentGameId), {
+          fen: nextFen,
+          lastMove: { from: moveObj.from, to: moveObj.to, san: moveObj.san, by: myId },
+          history,
+          statusText: resultText || ""
+        });
+      } catch (err) {
+        setStatus("Errore invio mossa: " + err.message, "err");
+      }
+    }
+
+    function evaluateGameEnd(c) {
+      if (c.isCheckmate()) {
+        const winner = c.turn() === "w" ? "Nero" : "Bianco";
+        return `SCACCO MATTO! Vince il ${winner}.`;
+      }
+      if (c.isStalemate()) return "Patta per stallo!";
+      if (c.isInsufficientMaterial()) return "Patta per materiale insufficiente!";
+      if (c.isThreefoldRepetition()) return "Patta per ripetizione di posizione!";
+      if (c.isDraw()) return "Partita patta!";
+      return null;
+    }
+
+    function updateMovesLog(history) {
+      const panel = document.getElementById("movesPanel");
+      const logEl = document.getElementById("movesLog");
+      if (!currentGameId) {
+        panel.style.display = "none";
+        return;
+      }
+      panel.style.display = "block";
+      if (!history || history.length === 0) {
+        logEl.textContent = "Nessuna mossa ancora.";
+        return;
+      }
+      const pairs = [];
+      for (let i = 0; i < history.length; i += 2) {
+        const num = Math.floor(i / 2) + 1;
+        pairs.push(`${num}. ${history[i]}${history[i + 1] ? " " + history[i + 1] : ""}`);
+      }
+      logEl.textContent = pairs.join("   ");
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function updateMatchBanner() {
+      if (!gameState || !myColor) return;
+      const opp = myColor === "w" ? gameState.black : gameState.white;
+      const colorName = myColor === "w" ? "Bianco ♔" : "Nero ♚";
+      const endMsg = evaluateGameEnd(chess);
+
+      if (endMsg) {
+        setStatus(`Partita vs ${opp} (${colorName}) — ${endMsg}`, "win");
+        return;
+      }
+
+      const checkAlert = chess.inCheck() ? " ⚠️ SCACCO!" : "";
+      const turnText = chess.turn() === myColor ? "IL TUO TURNO" : "Turno dell'avversario";
+      setStatus(`Partita vs ${opp} | Tu sei ${colorName} | ${turnText}${checkAlert}`);
     }
 
     function updateOnlineList() {
@@ -218,18 +666,30 @@
 
       ids.forEach(id => {
         const li = document.createElement("li");
-        const info = onlineUsers[id];
+        const info = onlineUsers[id] || {};
         li.textContent = `${id} ${id === myId ? "(Tu)" : ""} — ${info.inGame ? "In partita" : "Disponibile"}`;
         listEl.appendChild(li);
       });
 
       const availableOpponents = ids.filter(id => id !== myId && !onlineUsers[id]?.inGame);
-      document.getElementById("findMatchBtn").disabled = availableOpponents.length === 0 || Boolean(currentGameId);
+      document.getElementById("findMatchBtn").disabled =
+        availableOpponents.length === 0 || Boolean(currentGameId) || editorMode;
     }
 
     function subscribeToGame(gameId) {
       if (unsubscribeGame) unsubscribeGame();
       currentGameId = gameId;
+      selectedSq = null;
+      legalTargets = [];
+
+      // Chiude l'editor se era aperto
+      editorMode = false;
+      document.getElementById("editorPanel").classList.remove("active");
+      document.getElementById("toggleEditorBtn").style.display = "none";
+      document.getElementById("presetSelect").style.display = "none";
+      document.getElementById("findMatchBtn").style.display = "none";
+      document.getElementById("leaveGameBtn").style.display = "inline-block";
+
       update(ref(db, "presence/" + myId), { inGame: true, gameId });
 
       unsubscribeGame = onValue(ref(db, "games/" + gameId), snap => {
@@ -237,15 +697,138 @@
         if (!data) return;
         gameState = data;
         myColor = data.white === myId ? "w" : (data.black === myId ? "b" : null);
-        const opp = myColor === "w" ? data.black : data.white;
-        const turnLabel = data.turn === myColor ? "IL TUO TURNO" : "Turno dell'avversario";
-        setStatus(`Partita vs ${opp} | Tu sei ${myColor === "w" ? "Bianco" : "Nero"} | ${turnLabel}`);
+
+        try {
+          chess = new Chess(data.fen);
+        } catch (err) {
+          setStatus("FEN partita non valido: " + err.message, "err");
+          return;
+        }
+
+        updateMatchBanner();
+        updateMovesLog(data.history || []);
         renderBoard();
       });
     }
 
-    async function initMultiplayer() {
+    async function leaveCurrentGame() {
+      if (unsubscribeGame) {
+        unsubscribeGame();
+        unsubscribeGame = null;
+      }
+      currentGameId = null;
+      gameState = null;
+      myColor = null;
+      selectedSq = null;
+      legalTargets = [];
+
+      document.getElementById("toggleEditorBtn").style.display = "inline-block";
+      document.getElementById("presetSelect").style.display = "inline-block";
+      document.getElementById("findMatchBtn").style.display = "inline-block";
+      document.getElementById("leaveGameBtn").style.display = "none";
+      document.getElementById("movesPanel").style.display = "none";
+
+      await update(ref(db, "presence/" + myId), { inGame: false, gameId: null });
+      chess = new Chess(getSelectedStartFen());
+      setStatus("Connesso — pronto per una nuova partita.");
+      updateOnlineList();
       renderBoard();
+    }
+
+    // Eventi UI: Preset & Editor
+    document.getElementById("presetSelect").addEventListener("change", () => {
+      if (currentGameId) return;
+      chess = new Chess(getSelectedStartFen());
+      renderBoard();
+    });
+
+    document.getElementById("toggleEditorBtn").addEventListener("click", () => {
+      editorMode = !editorMode;
+      const panel = document.getElementById("editorPanel");
+      const btn = document.getElementById("toggleEditorBtn");
+
+      if (editorMode) {
+        editorGrid = fenToGrid(chess.fen());
+        editorSelectedSq = null;
+        paletteTool = "MOVE";
+        buildPalette();
+        panel.classList.add("active");
+        btn.textContent = "Annulla editor";
+        setStatus("Editor attivo: sposta i pezzi come vuoi e premi 'Salva e Gioca'.");
+      } else {
+        panel.classList.remove("active");
+        btn.textContent = "Crea la tua disposizione";
+        setStatus("Connesso — in attesa di un avversario.");
+      }
+      updateOnlineList();
+      renderBoard();
+    });
+
+    document.getElementById("editorClearBtn").addEventListener("click", () => {
+      editorGrid = Array.from({ length: 8 }, () => Array(8).fill(null));
+      editorGrid[7][4] = "wK";
+      editorGrid[0][4] = "bK";
+      editorSelectedSq = null;
+      renderBoard();
+    });
+
+    document.getElementById("editorRandomBtn").addEventListener("click", () => {
+      editorGrid = fenToGrid(generateRandomValidFen());
+      editorSelectedSq = null;
+      renderBoard();
+    });
+
+    document.getElementById("editorSaveBtn").addEventListener("click", () => {
+      const turn = document.getElementById("editorTurnSelect").value;
+      const candidateFen = gridToFen(editorGrid, turn);
+
+      // Verifica che ci siano esattamente 1 Re bianco e 1 Re nero e una posizione valida
+      let wKings = 0;
+      let bKings = 0;
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+          if (editorGrid[r][c] === "wK") wKings++;
+          if (editorGrid[r][c] === "bK") bKings++;
+        }
+      }
+      if (wKings !== 1 || bKings !== 1) {
+        setStatus("La disposizione deve avere esattamente 1 Re bianco e 1 Re nero.", "err");
+        return;
+      }
+
+      try {
+        const validated = new Chess(candidateFen);
+        if (validated.isGameOver()) {
+          setStatus("Posizione già terminata (scacco matto o stallo): modificala prima di giocare.", "err");
+          return;
+        }
+        customFen = validated.fen();
+        chess = validated;
+      } catch (err) {
+        setStatus("Posizione non valida (es. Re adiacenti o pedoni su 1a/8a traversa).", "err");
+        return;
+      }
+
+      editorMode = false;
+      document.getElementById("editorPanel").classList.remove("active");
+      document.getElementById("toggleEditorBtn").textContent = "Crea la tua disposizione";
+
+      const selectEl = document.getElementById("presetSelect");
+      const customOpt = selectEl.querySelector('option[value="custom"]');
+      customOpt.disabled = false;
+      selectEl.value = "custom";
+
+      setStatus("Disposizione personalizzata salvata! Premi 'Cerca e sfida un utente a caso'.");
+      updateOnlineList();
+      renderBoard();
+    });
+
+    document.getElementById("leaveGameBtn").addEventListener("click", leaveCurrentGame);
+
+    async function initMultiplayer() {
+      chess = new Chess(getSelectedStartFen());
+      renderBoard();
+
       try {
         const app = initializeApp(firebaseConfig);
         db = getDatabase(app);
@@ -263,7 +846,7 @@
             subscribeToGame(me.gameId);
           }
         }, err => {
-          setStatus("Errore lettura presenza: " + err.message, true);
+          setStatus("Errore lettura presenza: " + err.message, "err");
         });
 
         document.getElementById("findMatchBtn").addEventListener("click", async () => {
@@ -272,6 +855,7 @@
           );
           if (candidates.length === 0) return;
 
+          const startFen = getSelectedStartFen();
           const randomOpponent = candidates[Math.floor(Math.random() * candidates.length)];
           const gameId = "game_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6);
           const iAmWhite = Math.random() < 0.5;
@@ -279,8 +863,8 @@
           const initialGame = {
             white: iAmWhite ? myId : randomOpponent,
             black: iAmWhite ? randomOpponent : myId,
-            turn: "w",
-            board: generateRandomBoard(),
+            fen: startFen,
+            history: [],
             createdAt: Date.now()
           };
 
@@ -289,9 +873,11 @@
           subscribeToGame(gameId);
         });
 
-        setStatus("Connesso — in attesa di un altro giocatore...");
+        if (!currentGameId) {
+          setStatus("Connesso — in attesa di un altro giocatore...");
+        }
       } catch (err) {
-        setStatus("Errore Firebase: " + err.message, true);
+        setStatus("Errore Firebase: " + err.message, "err");
       }
     }
 
