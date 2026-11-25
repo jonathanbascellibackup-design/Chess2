@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Scacchi Reali Multiplayer — Regole Complete & Editor</title>
+  <title>Scacchi Reali Multiplayer — Regole Complete, Editor & .BSC/FEN</title>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -40,16 +40,22 @@
       justify-content: center;
       width: min(94vw, 500px);
     }
-    select, button {
+    select, button, input[type="text"] {
       font-family: inherit;
       font-size: 14px;
       border-radius: 8px;
       padding: 9px 13px;
       border: 1px solid #334155;
     }
-    select {
+    select, input[type="text"] {
       background: #1e293b;
       color: #f1f5f9;
+    }
+    input[type="text"] {
+      flex: 1 1 220px;
+      min-width: 180px;
+      font-family: ui-monospace, monospace;
+      font-size: 12px;
     }
     button {
       background: #2563eb;
@@ -199,12 +205,27 @@
       <option value="queens_gambit">Apertura: Gambetto di Donna (1.d4 d5 2.c4)</option>
       <option value="italian">Apertura: Partita Italiana</option>
       <option value="ruy_lopez">Apertura: Partita Spagnola</option>
-      <option value="custom" disabled>Disposizione: Personalizzata (pronta)</option>
+      <option value="custom" disabled>Disposizione: Personalizzata / Caricata</option>
     </select>
 
     <button id="toggleEditorBtn" class="secondary">Crea la tua disposizione</button>
     <button id="findMatchBtn" disabled>Cerca e sfida un utente a caso</button>
     <button id="leaveGameBtn" class="danger" style="display:none;">Esci dalla partita</button>
+  </div>
+
+  <!-- Salvataggio e caricamento .bsc + FEN -->
+  <div class="panel-box" id="ioBox">
+    <strong>Salvataggio &amp; Scambio (.bsc / FEN):</strong>
+    <div class="controls" style="margin-top:8px; width:100%;">
+      <button id="saveBscBtn" type="button" class="success">Salva (.bsc)</button>
+      <button id="loadBscBtn" type="button" class="secondary">Carica (.bsc)</button>
+      <button id="copyFenBtn" type="button" class="secondary">Copia FEN</button>
+      <input id="bscFileInput" type="file" accept=".bsc,application/json,text/plain" style="display:none;" />
+    </div>
+    <div class="controls" style="margin-top:8px; width:100%;">
+      <input id="fenInput" type="text" placeholder="Incolla una stringa FEN qui..." aria-label="Stringa FEN" />
+      <button id="loadFenBtn" type="button">Carica FEN</button>
+    </div>
   </div>
 
   <!-- Pannello Editor Scacchiera Personalizzata -->
@@ -267,7 +288,6 @@
 
     const FILES = ["a", "b", "c", "d", "e", "f", "g", "h"];
 
-    // FEN ufficiali delle aperture/disposizioni famose
     const PRESETS = {
       classic: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
       sicilian: "rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq c6 0 2",
@@ -286,17 +306,15 @@
     let gameState = null;
     let unsubscribeGame = null;
 
-    // Stato scacchiera e selezione
     let chess = new Chess();
-    let selectedSq = null;      // es. "e2"
-    let legalTargets = [];      // es. [{ to: "e4", captured: undefined }, ...]
+    let selectedSq = null;
+    let legalTargets = [];
     let customFen = null;
 
-    // Stato Editor
     let editorMode = false;
-    let editorGrid = null;      // 8x8 di codici "wQ", "bP", null
+    let editorGrid = null;
     let editorSelectedSq = null;
-    let paletteTool = "MOVE";   // "MOVE", "ERASE", o codice pezzo ("wQ", ecc.)
+    let paletteTool = "MOVE";
 
     function setStatus(msg, cls = "") {
       const el = document.getElementById("matchStatus");
@@ -304,14 +322,13 @@
       el.className = cls;
     }
 
-    function rcToSquare(r, c) {
-      return FILES[c] + (8 - r);
+    function syncFenInputField() {
+      const input = document.getElementById("fenInput");
+      if (input) input.value = chess.fen();
     }
 
-    function squareToRc(sq) {
-      const c = FILES.indexOf(sq[0]);
-      const r = 8 - parseInt(sq[1], 10);
-      return [r, c];
+    function rcToSquare(r, c) {
+      return FILES[c] + (8 - r);
     }
 
     function fenToGrid(fen) {
@@ -322,7 +339,6 @@
       );
     }
 
-    // Calcola automaticamente i diritti di arrocco se Re e Torri sono sulle case standard
     function computeCastlingRights(grid) {
       let rights = "";
       if (grid[7][4] === "wK") {
@@ -362,8 +378,6 @@
     }
 
     function generateRandomValidFen() {
-      // Genera una posizione casuale valida (1 Re per lato, nessun pedone su 1a/8a traversa,
-      // e chi non ha il turno non può essere già sotto scacco)
       for (let attempt = 0; attempt < 150; attempt++) {
         const grid = Array.from({ length: 8 }, () => Array(8).fill(null));
         const allSquares = [];
@@ -406,7 +420,7 @@
             return fen;
           }
         } catch (_) {
-          // Riprova se i due Re risultano adiacenti
+          // Riprova se i Re risultano adiacenti
         }
       }
       return PRESETS.classic;
@@ -417,6 +431,106 @@
       if (choice === "custom" && customFen) return customFen;
       if (choice === "random") return generateRandomValidFen();
       return PRESETS[choice] || PRESETS.classic;
+    }
+
+    async function applyLoadedPosition(fenString, importedHistory = null) {
+      const cleanedFen = (fenString || "").trim();
+      const validated = new Chess(cleanedFen);
+
+      chess = validated;
+      selectedSq = null;
+      legalTargets = [];
+
+      if (editorMode) {
+        editorGrid = fenToGrid(chess.fen());
+        editorSelectedSq = null;
+      }
+
+      if (!currentGameId) {
+        customFen = chess.fen();
+        const selectEl = document.getElementById("presetSelect");
+        const customOpt = selectEl.querySelector('option[value="custom"]');
+        customOpt.disabled = false;
+        selectEl.value = "custom";
+        setStatus("Posizione caricata! Premi 'Cerca e sfida un utente a caso' per giocare.");
+      } else if (db) {
+        const nextHistory = Array.isArray(importedHistory) ? importedHistory : (gameState?.history || []);
+        const resultText = evaluateGameEnd(chess);
+        await update(ref(db, "games/" + currentGameId), {
+          fen: chess.fen(),
+          history: nextHistory,
+          lastMove: null,
+          statusText: resultText || ""
+        });
+        updateMovesLog(nextHistory);
+        updateMatchBanner();
+      }
+
+      syncFenInputField();
+      renderBoard();
+    }
+
+    function saveGameToBsc() {
+      const payload = {
+        format: "bsc-chess-v1",
+        savedAt: new Date().toISOString(),
+        gameId: currentGameId || null,
+        fen: chess.fen(),
+        turn: chess.turn(),
+        history: gameState?.history || chess.history() || [],
+        lastMove: gameState?.lastMove || null
+      };
+
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+      a.href = url;
+      a.download = `partita-${stamp}.bsc`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+
+      if (!currentGameId) {
+        setStatus("File .bsc scaricato.");
+      }
+    }
+
+    function handleBscFileSelected(event) {
+      const file = event.target.files && event.target.files[0];
+      event.target.value = "";
+      if (!file) return;
+
+      if (!file.name.toLowerCase().endsWith(".bsc")) {
+        setStatus("Seleziona un file con estensione .bsc", "err");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          const rawText = String(reader.result || "").trim();
+          let fenToLoad = rawText;
+          let importedHistory = null;
+
+          if (rawText.startsWith("{")) {
+            const parsed = JSON.parse(rawText);
+            if (!parsed || typeof parsed.fen !== "string") {
+              throw new Error("Struttura file .bsc non valida");
+            }
+            fenToLoad = parsed.fen;
+            if (Array.isArray(parsed.history)) {
+              importedHistory = parsed.history;
+            }
+          }
+
+          await applyLoadedPosition(fenToLoad, importedHistory);
+        } catch (err) {
+          setStatus("Errore nel caricamento del file .bsc: " + err.message, "err");
+        }
+      };
+      reader.readAsText(file);
     }
 
     function buildPalette() {
@@ -467,7 +581,6 @@
         : null;
       const lastMove = (!editorMode && gameState && gameState.lastMove) ? gameState.lastMove : null;
 
-      // Orienta la scacchiera dal lato del giocatore se è Nero in partita
       const flip = Boolean(currentGameId && myColor === "b" && !editorMode);
 
       for (let vr = 0; vr < 8; vr++) {
@@ -521,13 +634,11 @@
       }
 
       if (paletteTool !== "MOVE") {
-        // Posiziona o toglie lo stesso pezzo dalla tavolozza
         editorGrid[r][c] = editorGrid[r][c] === paletteTool ? null : paletteTool;
         renderBoard();
         return;
       }
 
-      // Modalità MOVE: tocca un pezzo e tocca la casa di destinazione
       if (!editorSelectedSq) {
         if (editorGrid[r][c]) {
           editorSelectedSq = [r, c];
@@ -562,7 +673,6 @@
 
       const pieceOnSq = chess.get(sq);
 
-      // Se clicchi un tuo pezzo, selezionalo e mostra le mosse legali (incluso arrocco)
       if (pieceOnSq && pieceOnSq.color === myColor) {
         if (selectedSq === sq) {
           selectedSq = null;
@@ -577,7 +687,6 @@
 
       if (!selectedSq) return;
 
-      // Prova a eseguire la mossa tramite chess.js (valida regole, scacco, arrocco, en passant)
       const moveObj = chess.move({
         from: selectedSq,
         to: sq,
@@ -595,6 +704,7 @@
       const history = gameState.history ? [...gameState.history, moveObj.san] : [moveObj.san];
       const resultText = evaluateGameEnd(chess);
 
+      syncFenInputField();
       renderBoard();
       updateMovesLog(history);
 
@@ -682,7 +792,6 @@
       selectedSq = null;
       legalTargets = [];
 
-      // Chiude l'editor se era aperto
       editorMode = false;
       document.getElementById("editorPanel").classList.remove("active");
       document.getElementById("toggleEditorBtn").style.display = "none";
@@ -705,6 +814,7 @@
           return;
         }
 
+        syncFenInputField();
         updateMatchBanner();
         updateMovesLog(data.history || []);
         renderBoard();
@@ -730,15 +840,47 @@
 
       await update(ref(db, "presence/" + myId), { inGame: false, gameId: null });
       chess = new Chess(getSelectedStartFen());
+      syncFenInputField();
       setStatus("Connesso — pronto per una nuova partita.");
       updateOnlineList();
       renderBoard();
     }
 
-    // Eventi UI: Preset & Editor
+    // Eventi Salva/Carica .bsc e FEN
+    document.getElementById("saveBscBtn").addEventListener("click", saveGameToBsc);
+    document.getElementById("loadBscBtn").addEventListener("click", () => {
+      document.getElementById("bscFileInput").click();
+    });
+    document.getElementById("bscFileInput").addEventListener("change", handleBscFileSelected);
+
+    document.getElementById("copyFenBtn").addEventListener("click", async () => {
+      const fenText = chess.fen();
+      syncFenInputField();
+      try {
+        await navigator.clipboard.writeText(fenText);
+        setStatus("Stringa FEN copiata negli appunti.");
+      } catch (_) {
+        const input = document.getElementById("fenInput");
+        input.focus();
+        input.select();
+        setStatus("FEN pronta nel campo di testo: copiala con Ctrl+C / Cmd+C.");
+      }
+    });
+
+    document.getElementById("loadFenBtn").addEventListener("click", async () => {
+      const val = document.getElementById("fenInput").value;
+      try {
+        await applyLoadedPosition(val);
+      } catch (err) {
+        setStatus("Stringa FEN non valida: " + err.message, "err");
+      }
+    });
+
+    // Eventi Preset & Editor
     document.getElementById("presetSelect").addEventListener("change", () => {
       if (currentGameId) return;
       chess = new Chess(getSelectedStartFen());
+      syncFenInputField();
       renderBoard();
     });
 
@@ -782,7 +924,6 @@
       const turn = document.getElementById("editorTurnSelect").value;
       const candidateFen = gridToFen(editorGrid, turn);
 
-      // Verifica che ci siano esattamente 1 Re bianco e 1 Re nero e una posizione valida
       let wKings = 0;
       let bKings = 0;
       for (let r = 0; r < 8; r++) {
@@ -818,6 +959,7 @@
       customOpt.disabled = false;
       selectEl.value = "custom";
 
+      syncFenInputField();
       setStatus("Disposizione personalizzata salvata! Premi 'Cerca e sfida un utente a caso'.");
       updateOnlineList();
       renderBoard();
@@ -827,6 +969,7 @@
 
     async function initMultiplayer() {
       chess = new Chess(getSelectedStartFen());
+      syncFenInputField();
       renderBoard();
 
       try {
