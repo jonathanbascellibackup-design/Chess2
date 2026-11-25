@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Scacchi Reali Multiplayer — Regole Complete, Editor & .BSC/FEN</title>
+  <title>Scacchi Multiplayer, Stockfish & LLM</title>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -13,7 +13,7 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 18px 12px 36px;
+      padding: 18px 12px 40px;
       gap: 12px;
       margin: 0;
     }
@@ -27,7 +27,7 @@
       border: 1px solid #334155;
       padding: 10px 14px;
       border-radius: 10px;
-      width: min(94vw, 500px);
+      width: min(94vw, 520px);
       text-align: center;
       font-size: 14px;
       line-height: 1.45;
@@ -38,9 +38,9 @@
       gap: 8px;
       align-items: center;
       justify-content: center;
-      width: min(94vw, 500px);
+      width: min(94vw, 520px);
     }
-    select, button, input[type="text"] {
+    select, button, input[type="text"], input[type="range"] {
       font-family: inherit;
       font-size: 14px;
       border-radius: 8px;
@@ -57,6 +57,11 @@
       font-family: ui-monospace, monospace;
       font-size: 12px;
     }
+    input[type="range"] {
+      padding: 4px 0;
+      accent-color: #2563eb;
+      cursor: pointer;
+    }
     button {
       background: #2563eb;
       color: #ffffff;
@@ -64,34 +69,38 @@
       cursor: pointer;
       font-weight: 600;
     }
-    button.secondary {
-      background: #334155;
-    }
-    button.success {
-      background: #16a34a;
-    }
-    button.danger {
-      background: #dc2626;
-    }
+    button.secondary { background: #334155; }
+    button.success { background: #16a34a; }
+    button.danger { background: #dc2626; }
+    button.purple { background: #7c3aed; }
     button:disabled {
       background: #475569;
       opacity: 0.65;
       cursor: not-allowed;
     }
-    .editor-panel {
+    .editor-panel, .sf-panel {
       display: none;
       flex-direction: column;
       gap: 10px;
       background: #1e293b;
-      border: 1px solid #f59e0b;
+      border: 1px solid #475569;
       padding: 12px;
       border-radius: 10px;
-      width: min(94vw, 500px);
+      width: min(94vw, 520px);
       font-size: 13px;
     }
-    .editor-panel.active {
+    .editor-panel { border-color: #f59e0b; }
+    .sf-panel { border-color: #38bdf8; }
+    .editor-panel.active, .sf-panel.active { display: flex; }
+    .slider-row {
       display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
     }
+    .slider-row label { flex: 0 0 130px; }
+    .slider-row input[type="range"] { flex: 1; }
+    .slider-row span { min-width: 44px; text-align: right; font-family: ui-monospace, monospace; }
     .palette {
       display: flex;
       flex-wrap: wrap;
@@ -140,12 +149,8 @@
       outline: 3px solid #ca8a04;
       outline-offset: -3px;
     }
-    .last-move {
-      box-shadow: inset 0 0 0 3px rgba(59, 130, 246, 0.75);
-    }
-    .in-check {
-      background: #ef4444 !important;
-    }
+    .last-move { box-shadow: inset 0 0 0 3px rgba(59, 130, 246, 0.75); }
+    .in-check { background: #ef4444 !important; }
     .legal-dot::after {
       content: "";
       width: 14px;
@@ -166,13 +171,10 @@
       background: #1e293b;
       padding: 12px 14px;
       border-radius: 10px;
-      width: min(94vw, 500px);
+      width: min(94vw, 520px);
       font-size: 14px;
     }
-    .panel-box ul {
-      margin: 6px 0 0 18px;
-      padding: 0;
-    }
+    .panel-box ul { margin: 6px 0 0 18px; padding: 0; }
     .moves-log {
       margin-top: 6px;
       max-height: 90px;
@@ -189,14 +191,14 @@
   </style>
 </head>
 <body>
-  <h1>Scacchi Reali Multiplayer</h1>
+  <h1>Scacchi Multiplayer, Stockfish &amp; LLM</h1>
 
   <div class="status-bar">
     <div><strong id="myId">Tu: -</strong></div>
     <div id="matchStatus">Connessione in corso...</div>
   </div>
 
-  <!-- Controlli pre-partita -->
+  <!-- Controlli principali -->
   <div class="controls" id="lobbyControls">
     <select id="presetSelect" title="Scegli disposizione iniziale">
       <option value="random">Disposizione: Casuale</option>
@@ -208,9 +210,32 @@
       <option value="custom" disabled>Disposizione: Personalizzata / Caricata</option>
     </select>
 
-    <button id="toggleEditorBtn" class="secondary">Crea la tua disposizione</button>
-    <button id="findMatchBtn" disabled>Cerca e sfida un utente a caso</button>
-    <button id="leaveGameBtn" class="danger" style="display:none;">Esci dalla partita</button>
+    <button id="toggleEditorBtn" type="button" class="secondary">Crea la tua disposizione</button>
+    <button id="findMatchBtn" type="button" disabled>Cerca e sfida un utente a caso</button>
+    <button id="sfBtn" type="button" class="success">Sfida Stockfish</button>
+    <button id="llmBtn" type="button" class="purple">Sfida LLM</button>
+    <button id="leaveGameBtn" type="button" class="danger" style="display:none;">Esci dalla partita</button>
+  </div>
+
+  <!-- Configurazione Stockfish -->
+  <div class="sf-panel active" id="sfPanel">
+    <strong>Impostazioni Stockfish:</strong>
+    <div class="slider-row">
+      <label for="sfSkillRange">Skill Level (0-20):</label>
+      <input id="sfSkillRange" type="range" min="0" max="20" value="20" />
+      <span id="sfSkillVal">20</span>
+    </div>
+    <div class="slider-row">
+      <label for="sfDepthRange">Profondità (1-22):</label>
+      <input id="sfDepthRange" type="range" min="1" max="22" value="14" />
+      <span id="sfDepthVal">14</span>
+    </div>
+    <div class="controls" style="width:100%; justify-content:flex-start;">
+      <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+        <input id="sfPureModeCheckbox" type="checkbox" checked />
+        <span><strong>Modello puro (senza limiti)</strong> — disattiva limiti di forza/Elo e usa massima ricerca</span>
+      </label>
+    </div>
   </div>
 
   <!-- Salvataggio e caricamento .bsc + FEN -->
@@ -240,9 +265,9 @@
         <option value="w">Inizia il Bianco</option>
         <option value="b">Inizia il Nero</option>
       </select>
-      <button id="editorClearBtn" class="secondary">Svuota (solo i 2 Re)</button>
-      <button id="editorRandomBtn" class="secondary">Rimescola</button>
-      <button id="editorSaveBtn" class="success">Salva e Gioca</button>
+      <button id="editorClearBtn" type="button" class="secondary">Svuota (solo i 2 Re)</button>
+      <button id="editorRandomBtn" type="button" class="secondary">Rimescola</button>
+      <button id="editorSaveBtn" type="button" class="success">Salva e Gioca</button>
     </div>
   </div>
 
@@ -301,10 +326,14 @@
 
     let db = null;
     let onlineUsers = {};
+    // mode: null | "mp" | "stockfish" | "llm"
+    let gameMode = null;
     let currentGameId = null;
     let myColor = null;
+    let botColor = null;
     let gameState = null;
     let unsubscribeGame = null;
+    let isBotThinking = false;
 
     let chess = new Chess();
     let selectedSq = null;
@@ -315,6 +344,13 @@
     let editorGrid = null;
     let editorSelectedSq = null;
     let paletteTool = "MOVE";
+
+    // Stockfish worker & LLM pipeline
+    let sfWorker = null;
+    let sfReady = false;
+    let sfPendingResolver = null;
+    let llmGenerator = null;
+    let llmLoadingPromise = null;
 
     function setStatus(msg, cls = "") {
       const el = document.getElementById("matchStatus");
@@ -333,8 +369,7 @@
 
     function fenToGrid(fen) {
       const temp = new Chess(fen);
-      const raw = temp.board();
-      return raw.map(row =>
+      return temp.board().map(row =>
         row.map(cell => (cell ? cell.color + cell.type.toUpperCase() : null))
       );
     }
@@ -419,9 +454,7 @@
           if (!testChess.isGameOver()) {
             return fen;
           }
-        } catch (_) {
-          // Riprova se i Re risultano adiacenti
-        }
+        } catch (_) {}
       }
       return PRESETS.classic;
     }
@@ -433,6 +466,287 @@
       return PRESETS[choice] || PRESETS.classic;
     }
 
+    // --- Stockfish UCI Engine ---
+    async function ensureStockfishEngine() {
+      if (sfWorker && sfReady) return true;
+      if (sfWorker === "FALLBACK") return false;
+
+      const candidateUrls = [
+        "https://cdn.jsdelivr.net/npm/stockfish@17.1.0/src/stockfish-17.1-lite-single.js",
+        "https://unpkg.com/stockfish@17.1.0/src/stockfish-17.1-lite-single.js"
+      ];
+
+      for (const url of candidateUrls) {
+        try {
+          const resp = await fetch(url);
+          if (!resp.ok) continue;
+          const code = await resp.text();
+          const blob = new Blob([code], { type: "application/javascript" });
+          const blobUrl = URL.createObjectURL(blob);
+          const worker = new Worker(blobUrl);
+
+          const ok = await new Promise(resolve => {
+            const timer = setTimeout(() => resolve(false), 6000);
+            worker.onmessage = e => {
+              const line = typeof e.data === "string" ? e.data : (e.data?.data || "");
+              if (line === "uciok") {
+                clearTimeout(timer);
+                resolve(true);
+              }
+              if (line.startsWith("bestmove") && sfPendingResolver) {
+                const parts = line.split(/\s+/);
+                const best = parts[1] || null;
+                const fn = sfPendingResolver;
+                sfPendingResolver = null;
+                fn(best);
+              }
+            };
+            worker.postMessage("uci");
+          });
+
+          URL.revokeObjectURL(blobUrl);
+          if (ok) {
+            sfWorker = worker;
+            sfReady = true;
+            return true;
+          }
+          worker.terminate();
+        } catch (_) {}
+      }
+
+      sfWorker = "FALLBACK";
+      return false;
+    }
+
+    function fallbackSearchMove(fen, depth = 3) {
+      const temp = new Chess(fen);
+      const moves = temp.moves({ verbose: true });
+      if (!moves.length) return null;
+
+      const values = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 20000 };
+      const scoreBoard = c => {
+        if (c.isCheckmate()) return c.turn() === "w" ? -999999 : 999999;
+        if (c.isDraw() || c.isStalemate()) return 0;
+        let s = 0;
+        for (const row of c.board()) {
+          for (const pc of row) {
+            if (!pc) continue;
+            const v = values[pc.type] || 0;
+            s += pc.color === "w" ? v : -v;
+          }
+        }
+        return s;
+      };
+
+      const maximizing = temp.turn() === "w";
+      const minimax = (pos, d, alpha, beta, isMax) => {
+        if (d === 0 || pos.isGameOver()) return scoreBoard(pos);
+        const ms = pos.moves({ verbose: true });
+        if (isMax) {
+          let best = -Infinity;
+          for (const m of ms) {
+            pos.move(m);
+            const val = minimax(pos, d - 1, alpha, beta, false);
+            pos.undo();
+            if (val > best) best = val;
+            if (best > alpha) alpha = best;
+            if (beta <= alpha) break;
+          }
+          return best;
+        } else {
+          let best = Infinity;
+          for (const m of ms) {
+            pos.move(m);
+            const val = minimax(pos, d - 1, alpha, beta, true);
+            pos.undo();
+            if (val < best) best = val;
+            if (best < beta) beta = best;
+            if (beta <= alpha) break;
+          }
+          return best;
+        }
+      };
+
+      let bestMove = moves[0];
+      let bestScore = maximizing ? -Infinity : Infinity;
+      for (const m of moves) {
+        temp.move(m);
+        const sc = minimax(temp, Math.max(1, depth - 1), -Infinity, Infinity, !maximizing);
+        temp.undo();
+        if (maximizing ? sc > bestScore : sc < bestScore) {
+          bestScore = sc;
+          bestMove = m;
+        }
+      }
+      return bestMove ? (bestMove.from + bestMove.to + (bestMove.promotion || "")) : null;
+    }
+
+    async function getStockfishMove(fen) {
+      const pureMode = document.getElementById("sfPureModeCheckbox").checked;
+      const skill = parseInt(document.getElementById("sfSkillRange").value, 10);
+      const depth = parseInt(document.getElementById("sfDepthRange").value, 10);
+
+      const hasWasm = await ensureStockfishEngine();
+      if (!hasWasm) {
+        return fallbackSearchMove(fen, pureMode ? 4 : Math.min(4, Math.max(1, Math.ceil(depth / 5))));
+      }
+
+      return new Promise(resolve => {
+        const timeout = setTimeout(() => {
+          if (sfPendingResolver) {
+            sfPendingResolver = null;
+            resolve(fallbackSearchMove(fen, 2));
+          }
+        }, 12000);
+
+        sfPendingResolver = uciMove => {
+          clearTimeout(timeout);
+          resolve(uciMove);
+        };
+
+        if (pureMode) {
+          sfWorker.postMessage("setoption name UCI_LimitStrength value false");
+          sfWorker.postMessage("setoption name Skill Level value 20");
+          sfWorker.postMessage("setoption name MultiPV value 1");
+          sfWorker.postMessage("isready");
+          sfWorker.postMessage("position fen " + fen);
+          sfWorker.postMessage("go depth " + Math.max(16, depth));
+        } else {
+          sfWorker.postMessage("setoption name UCI_LimitStrength value false");
+          sfWorker.postMessage("setoption name Skill Level value " + skill);
+          sfWorker.postMessage("isready");
+          sfWorker.postMessage("position fen " + fen);
+          sfWorker.postMessage("go depth " + depth);
+        }
+      });
+    }
+
+    // --- Piccolo LLM nel browser (Transformers.js) ---
+    async function getLlmMove(fen) {
+      const temp = new Chess(fen);
+      const legalMoves = temp.moves({ verbose: true });
+      if (!legalMoves.length) return null;
+
+      try {
+        if (!llmGenerator && !llmLoadingPromise) {
+          llmLoadingPromise = (async () => {
+            const { pipeline } = await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.4.2");
+            const device = navigator.gpu ? "webgpu" : "wasm";
+            return await pipeline("text-generation", "HuggingFaceTB/SmolLM2-135M-Instruct", {
+              device,
+              dtype: "q4"
+            });
+          })();
+        }
+        if (!llmGenerator && llmLoadingPromise) {
+          llmGenerator = await llmLoadingPromise;
+        }
+
+        const sanList = legalMoves.map(m => m.san).slice(0, 35).join(", ");
+        const prompt =
+          `Chess position FEN: ${fen}\n` +
+          `Legal moves: ${sanList}\n` +
+          `Reply with ONLY ONE legal move from the list above:`;
+
+        const out = await llmGenerator(prompt, {
+          max_new_tokens: 10,
+          do_sample: true,
+          temperature: 0.7
+        });
+
+        const generated = (out?.[0]?.generated_text || "").slice(prompt.length).trim();
+        const tokens = generated.replace(/[.,!?;:()\[\]]/g, " ").split(/\s+/).filter(Boolean);
+
+        for (const tok of tokens) {
+          const matched = legalMoves.find(m => m.san === tok || (m.from + m.to) === tok.toLowerCase());
+          if (matched) {
+            return matched.from + matched.to + (matched.promotion || "");
+          }
+        }
+      } catch (_) {
+        // Fallback leggero se il modello non è caricabile nell'ambiente corrente
+      }
+
+      const pick = legalMoves[Math.floor(Math.random() * legalMoves.length)];
+      return pick.from + pick.to + (pick.promotion || "");
+    }
+
+    function applyUciMoveString(uciStr) {
+      if (!uciStr || uciStr.length < 4) return null;
+      const from = uciStr.slice(0, 2);
+      const to = uciStr.slice(2, 4);
+      const promotion = uciStr.length > 4 ? uciStr[4] : "q";
+      return chess.move({ from, to, promotion });
+    }
+
+    async function maybeRunBotTurn() {
+      if (!gameMode || gameMode === "mp") return;
+      if (isBotThinking || chess.isGameOver()) return;
+      if (chess.turn() !== botColor) return;
+
+      isBotThinking = true;
+      const botLabel = gameMode === "stockfish"
+        ? (document.getElementById("sfPureModeCheckbox").checked ? "Stockfish (Puro)" : "Stockfish")
+        : "LLM";
+      setStatus(`${botLabel} sta pensando alla mossa...`);
+
+      const moveStr = gameMode === "stockfish"
+        ? await getStockfishMove(chess.fen())
+        : await getLlmMove(chess.fen());
+
+      let moveObj = applyUciMoveString(moveStr);
+      if (!moveObj) {
+        const fallbackMoves = chess.moves({ verbose: true });
+        if (fallbackMoves.length) {
+          const m = fallbackMoves[Math.floor(Math.random() * fallbackMoves.length)];
+          moveObj = chess.move(m);
+        }
+      }
+
+      isBotThinking = false;
+      if (!moveObj) return;
+
+      gameState.history = [...(gameState.history || []), moveObj.san];
+      gameState.lastMove = { from: moveObj.from, to: moveObj.to, san: moveObj.san };
+
+      syncFenInputField();
+      updateMovesLog(gameState.history);
+      updateMatchBanner();
+      renderBoard();
+    }
+
+    async function startSoloBotMatch(mode) {
+      if (currentGameId) await leaveCurrentGame();
+
+      const startFen = getSelectedStartFen();
+      chess = new Chess(startFen);
+      myColor = "w";
+      botColor = "b";
+      gameMode = mode;
+      selectedSq = null;
+      legalTargets = [];
+      gameState = {
+        fen: startFen,
+        history: [],
+        lastMove: null
+      };
+
+      editorMode = false;
+      document.getElementById("editorPanel").classList.remove("active");
+      document.getElementById("toggleEditorBtn").style.display = "none";
+      document.getElementById("presetSelect").style.display = "none";
+      document.getElementById("findMatchBtn").style.display = "none";
+      document.getElementById("sfBtn").style.display = "none";
+      document.getElementById("llmBtn").style.display = "none";
+      document.getElementById("leaveGameBtn").style.display = "inline-block";
+
+      syncFenInputField();
+      updateMovesLog([]);
+      updateMatchBanner();
+      renderBoard();
+    }
+
+    // --- Salvataggio e Caricamento .BSC / FEN ---
     async function applyLoadedPosition(fenString, importedHistory = null) {
       const cleanedFen = (fenString || "").trim();
       const validated = new Chess(cleanedFen);
@@ -447,12 +761,19 @@
       }
 
       if (!currentGameId) {
-        customFen = chess.fen();
-        const selectEl = document.getElementById("presetSelect");
-        const customOpt = selectEl.querySelector('option[value="custom"]');
-        customOpt.disabled = false;
-        selectEl.value = "custom";
-        setStatus("Posizione caricata! Premi 'Cerca e sfida un utente a caso' per giocare.");
+        if (gameMode && gameState) {
+          gameState.fen = chess.fen();
+          if (Array.isArray(importedHistory)) gameState.history = importedHistory;
+          updateMovesLog(gameState.history || []);
+          updateMatchBanner();
+        } else {
+          customFen = chess.fen();
+          const selectEl = document.getElementById("presetSelect");
+          const customOpt = selectEl.querySelector('option[value="custom"]');
+          customOpt.disabled = false;
+          selectEl.value = "custom";
+          setStatus("Posizione caricata! Avvia una partita o una sfida.");
+        }
       } else if (db) {
         const nextHistory = Array.isArray(importedHistory) ? importedHistory : (gameState?.history || []);
         const resultText = evaluateGameEnd(chess);
@@ -468,12 +789,16 @@
 
       syncFenInputField();
       renderBoard();
+      if (gameMode && gameMode !== "mp" && chess.turn() === botColor) {
+        await maybeRunBotTurn();
+      }
     }
 
     function saveGameToBsc() {
       const payload = {
         format: "bsc-chess-v1",
         savedAt: new Date().toISOString(),
+        mode: gameMode || "setup",
         gameId: currentGameId || null,
         fen: chess.fen(),
         turn: chess.turn(),
@@ -492,7 +817,7 @@
       a.remove();
       URL.revokeObjectURL(url);
 
-      if (!currentGameId) {
+      if (!currentGameId && !gameMode) {
         setStatus("File .bsc scaricato.");
       }
     }
@@ -661,13 +986,13 @@
     }
 
     async function handlePlayClick(sq) {
-      if (!gameState || !currentGameId || !myColor) {
-        setStatus("Scegli una disposizione e premi 'Cerca e sfida un utente a caso'.");
+      if (!gameMode || !myColor) {
+        setStatus("Scegli una modalità: 'Cerca e sfida un utente a caso', 'Sfida Stockfish' o 'Sfida LLM'.");
         return;
       }
-      if (chess.isGameOver()) return;
+      if (isBotThinking || chess.isGameOver()) return;
       if (chess.turn() !== myColor) {
-        setStatus("Attendi la mossa dell'avversario.");
+        setStatus("Attendi il turno dell'avversario.");
         return;
       }
 
@@ -701,22 +1026,32 @@
       selectedSq = null;
       legalTargets = [];
       const nextFen = chess.fen();
-      const history = gameState.history ? [...gameState.history, moveObj.san] : [moveObj.san];
+      const history = gameState?.history ? [...gameState.history, moveObj.san] : [moveObj.san];
       const resultText = evaluateGameEnd(chess);
 
       syncFenInputField();
       renderBoard();
       updateMovesLog(history);
 
-      try {
-        await update(ref(db, "games/" + currentGameId), {
-          fen: nextFen,
-          lastMove: { from: moveObj.from, to: moveObj.to, san: moveObj.san, by: myId },
-          history,
-          statusText: resultText || ""
-        });
-      } catch (err) {
-        setStatus("Errore invio mossa: " + err.message, "err");
+      if (gameMode === "mp" && currentGameId && db) {
+        try {
+          await update(ref(db, "games/" + currentGameId), {
+            fen: nextFen,
+            lastMove: { from: moveObj.from, to: moveObj.to, san: moveObj.san, by: myId },
+            history,
+            statusText: resultText || ""
+          });
+        } catch (err) {
+          setStatus("Errore invio mossa: " + err.message, "err");
+        }
+      } else {
+        gameState.history = history;
+        gameState.fen = nextFen;
+        gameState.lastMove = { from: moveObj.from, to: moveObj.to, san: moveObj.san };
+        updateMatchBanner();
+        if (!chess.isGameOver()) {
+          await maybeRunBotTurn();
+        }
       }
     }
 
@@ -735,7 +1070,7 @@
     function updateMovesLog(history) {
       const panel = document.getElementById("movesPanel");
       const logEl = document.getElementById("movesLog");
-      if (!currentGameId) {
+      if (!gameMode) {
         panel.style.display = "none";
         return;
       }
@@ -754,19 +1089,27 @@
     }
 
     function updateMatchBanner() {
-      if (!gameState || !myColor) return;
-      const opp = myColor === "w" ? gameState.black : gameState.white;
+      if (!gameMode || !myColor) return;
       const colorName = myColor === "w" ? "Bianco ♔" : "Nero ♚";
-      const endMsg = evaluateGameEnd(chess);
+      let oppName = "Avversario";
+      if (gameMode === "mp" && gameState) {
+        oppName = myColor === "w" ? gameState.black : gameState.white;
+      } else if (gameMode === "stockfish") {
+        const isPure = document.getElementById("sfPureModeCheckbox").checked;
+        oppName = isPure ? "Stockfish (Puro)" : `Stockfish (Lv.${document.getElementById("sfSkillRange").value})`;
+      } else if (gameMode === "llm") {
+        oppName = "LLM (SmolLM2-135M)";
+      }
 
+      const endMsg = evaluateGameEnd(chess);
       if (endMsg) {
-        setStatus(`Partita vs ${opp} (${colorName}) — ${endMsg}`, "win");
+        setStatus(`Partita vs ${oppName} (${colorName}) — ${endMsg}`, "win");
         return;
       }
 
       const checkAlert = chess.inCheck() ? " ⚠️ SCACCO!" : "";
-      const turnText = chess.turn() === myColor ? "IL TUO TURNO" : "Turno dell'avversario";
-      setStatus(`Partita vs ${opp} | Tu sei ${colorName} | ${turnText}${checkAlert}`);
+      const turnText = chess.turn() === myColor ? "IL TUO TURNO" : `Turno di ${oppName}`;
+      setStatus(`Partita vs ${oppName} | Tu sei ${colorName} | ${turnText}${checkAlert}`);
     }
 
     function updateOnlineList() {
@@ -783,12 +1126,14 @@
 
       const availableOpponents = ids.filter(id => id !== myId && !onlineUsers[id]?.inGame);
       document.getElementById("findMatchBtn").disabled =
-        availableOpponents.length === 0 || Boolean(currentGameId) || editorMode;
+        availableOpponents.length === 0 || Boolean(gameMode) || editorMode;
     }
 
     function subscribeToGame(gameId) {
       if (unsubscribeGame) unsubscribeGame();
+      gameMode = "mp";
       currentGameId = gameId;
+      botColor = null;
       selectedSq = null;
       legalTargets = [];
 
@@ -797,28 +1142,31 @@
       document.getElementById("toggleEditorBtn").style.display = "none";
       document.getElementById("presetSelect").style.display = "none";
       document.getElementById("findMatchBtn").style.display = "none";
+      document.getElementById("sfBtn").style.display = "none";
+      document.getElementById("llmBtn").style.display = "none";
       document.getElementById("leaveGameBtn").style.display = "inline-block";
 
-      update(ref(db, "presence/" + myId), { inGame: true, gameId });
+      if (db) {
+        update(ref(db, "presence/" + myId), { inGame: true, gameId });
+        unsubscribeGame = onValue(ref(db, "games/" + gameId), snap => {
+          const data = snap.val();
+          if (!data) return;
+          gameState = data;
+          myColor = data.white === myId ? "w" : (data.black === myId ? "b" : null);
 
-      unsubscribeGame = onValue(ref(db, "games/" + gameId), snap => {
-        const data = snap.val();
-        if (!data) return;
-        gameState = data;
-        myColor = data.white === myId ? "w" : (data.black === myId ? "b" : null);
+          try {
+            chess = new Chess(data.fen);
+          } catch (err) {
+            setStatus("FEN partita non valido: " + err.message, "err");
+            return;
+          }
 
-        try {
-          chess = new Chess(data.fen);
-        } catch (err) {
-          setStatus("FEN partita non valido: " + err.message, "err");
-          return;
-        }
-
-        syncFenInputField();
-        updateMatchBanner();
-        updateMovesLog(data.history || []);
-        renderBoard();
-      });
+          syncFenInputField();
+          updateMatchBanner();
+          updateMovesLog(data.history || []);
+          renderBoard();
+        });
+      }
     }
 
     async function leaveCurrentGame() {
@@ -826,25 +1174,48 @@
         unsubscribeGame();
         unsubscribeGame = null;
       }
+      const wasMp = Boolean(currentGameId);
       currentGameId = null;
+      gameMode = null;
       gameState = null;
       myColor = null;
+      botColor = null;
+      isBotThinking = false;
       selectedSq = null;
       legalTargets = [];
 
       document.getElementById("toggleEditorBtn").style.display = "inline-block";
       document.getElementById("presetSelect").style.display = "inline-block";
       document.getElementById("findMatchBtn").style.display = "inline-block";
+      document.getElementById("sfBtn").style.display = "inline-block";
+      document.getElementById("llmBtn").style.display = "inline-block";
       document.getElementById("leaveGameBtn").style.display = "none";
       document.getElementById("movesPanel").style.display = "none";
 
-      await update(ref(db, "presence/" + myId), { inGame: false, gameId: null });
+      if (wasMp && db) {
+        await update(ref(db, "presence/" + myId), { inGame: false, gameId: null });
+      }
       chess = new Chess(getSelectedStartFen());
       syncFenInputField();
-      setStatus("Connesso — pronto per una nuova partita.");
+      setStatus("Pronto per una nuova partita.");
       updateOnlineList();
       renderBoard();
     }
+
+    // Eventi Stockfish & LLM
+    document.getElementById("sfSkillRange").addEventListener("input", e => {
+      document.getElementById("sfSkillVal").textContent = e.target.value;
+      if (gameMode === "stockfish") updateMatchBanner();
+    });
+    document.getElementById("sfDepthRange").addEventListener("input", e => {
+      document.getElementById("sfDepthVal").textContent = e.target.value;
+    });
+    document.getElementById("sfPureModeCheckbox").addEventListener("change", () => {
+      if (gameMode === "stockfish") updateMatchBanner();
+    });
+
+    document.getElementById("sfBtn").addEventListener("click", () => startSoloBotMatch("stockfish"));
+    document.getElementById("llmBtn").addEventListener("click", () => startSoloBotMatch("llm"));
 
     // Eventi Salva/Carica .bsc e FEN
     document.getElementById("saveBscBtn").addEventListener("click", saveGameToBsc);
@@ -878,7 +1249,7 @@
 
     // Eventi Preset & Editor
     document.getElementById("presetSelect").addEventListener("change", () => {
-      if (currentGameId) return;
+      if (gameMode) return;
       chess = new Chess(getSelectedStartFen());
       syncFenInputField();
       renderBoard();
@@ -900,7 +1271,7 @@
       } else {
         panel.classList.remove("active");
         btn.textContent = "Crea la tua disposizione";
-        setStatus("Connesso — in attesa di un avversario.");
+        setStatus("Pronto per una partita.");
       }
       updateOnlineList();
       renderBoard();
@@ -960,7 +1331,7 @@
       selectEl.value = "custom";
 
       syncFenInputField();
-      setStatus("Disposizione personalizzata salvata! Premi 'Cerca e sfida un utente a caso'.");
+      setStatus("Disposizione personalizzata salvata! Scegli la modalità di sfida.");
       updateOnlineList();
       renderBoard();
     });
@@ -985,7 +1356,7 @@
           updateOnlineList();
 
           const me = onlineUsers[myId];
-          if (me && me.inGame && me.gameId && !currentGameId) {
+          if (me && me.inGame && me.gameId && !currentGameId && !gameMode) {
             subscribeToGame(me.gameId);
           }
         }, err => {
@@ -1016,8 +1387,8 @@
           subscribeToGame(gameId);
         });
 
-        if (!currentGameId) {
-          setStatus("Connesso — in attesa di un altro giocatore...");
+        if (!gameMode) {
+          setStatus("Connesso — sfida un utente online, Stockfish o LLM.");
         }
       } catch (err) {
         setStatus("Errore Firebase: " + err.message, "err");
