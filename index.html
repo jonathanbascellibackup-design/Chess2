@@ -37,18 +37,18 @@
     }
     .board {
       display: grid;
-      grid-template-columns: repeat(8, 60px);
-      grid-template-rows: repeat(8, 60px);
+      grid-template-columns: repeat(8, 56px);
+      grid-template-rows: repeat(8, 56px);
       border: 3px solid #334155;
       user-select: none;
     }
     .cell {
-      width: 60px;
-      height: 60px;
+      width: 56px;
+      height: 56px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 38px;
+      font-size: 36px;
       cursor: pointer;
     }
     .light { background: #e2e8f0; color: #0f172a; }
@@ -58,9 +58,10 @@
       background: #1e293b;
       padding: 12px 16px;
       border-radius: 10px;
-      min-width: 300px;
+      min-width: 280px;
       font-size: 14px;
     }
+    .err { color: #f87171; font-weight: 600; }
   </style>
 </head>
 <body>
@@ -84,7 +85,6 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/13.4.0/firebase-app.js";
-    import { getAnalytics } from "https://www.gstatic.com/firebasejs/13.4.0/firebase-analytics.js";
     import {
       getDatabase,
       ref,
@@ -120,6 +120,12 @@
     let gameState = null;
     let selectedSquare = null;
     let unsubscribeGame = null;
+
+    function setStatus(msg, isError = false) {
+      const el = document.getElementById("matchStatus");
+      el.textContent = msg;
+      el.className = isError ? "err" : "";
+    }
 
     function generateRandomBoard() {
       const board = Array.from({ length: 8 }, () => Array(8).fill(null));
@@ -233,58 +239,60 @@
         myColor = data.white === myId ? "w" : (data.black === myId ? "b" : null);
         const opp = myColor === "w" ? data.black : data.white;
         const turnLabel = data.turn === myColor ? "IL TUO TURNO" : "Turno dell'avversario";
-        document.getElementById("matchStatus").textContent =
-          `Partita vs ${opp} | Tu sei ${myColor === "w" ? "Bianco" : "Nero"} | ${turnLabel}`;
+        setStatus(`Partita vs ${opp} | Tu sei ${myColor === "w" ? "Bianco" : "Nero"} | ${turnLabel}`);
         renderBoard();
       });
     }
 
     async function initMultiplayer() {
-      const app = initializeApp(firebaseConfig);
-      if (location.protocol !== "file:") {
-        getAnalytics(app);
-      }
-      db = getDatabase(app);
-
-      const myPresenceRef = ref(db, "presence/" + myId);
-      await set(myPresenceRef, { joinedAt: Date.now(), inGame: false, gameId: null });
-      await onDisconnect(myPresenceRef).remove();
-
-      onValue(ref(db, "presence"), snap => {
-        onlineUsers = snap.val() || {};
-        updateOnlineList();
-
-        const me = onlineUsers[myId];
-        if (me && me.inGame && me.gameId && !currentGameId) {
-          subscribeToGame(me.gameId);
-        }
-      });
-
-      document.getElementById("findMatchBtn").addEventListener("click", async () => {
-        const candidates = Object.keys(onlineUsers).filter(
-          id => id !== myId && !onlineUsers[id]?.inGame
-        );
-        if (candidates.length === 0) return;
-
-        const randomOpponent = candidates[Math.floor(Math.random() * candidates.length)];
-        const gameId = "game_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6);
-        const iAmWhite = Math.random() < 0.5;
-
-        const initialGame = {
-          white: iAmWhite ? myId : randomOpponent,
-          black: iAmWhite ? randomOpponent : myId,
-          turn: "w",
-          board: generateRandomBoard(),
-          createdAt: Date.now()
-        };
-
-        await set(ref(db, "games/" + gameId), initialGame);
-        await update(ref(db, "presence/" + randomOpponent), { inGame: true, gameId });
-        subscribeToGame(gameId);
-      });
-
-      document.getElementById("matchStatus").textContent = "Connesso — in attesa di un altro giocatore...";
       renderBoard();
+      try {
+        const app = initializeApp(firebaseConfig);
+        db = getDatabase(app);
+
+        const myPresenceRef = ref(db, "presence/" + myId);
+        await set(myPresenceRef, { joinedAt: Date.now(), inGame: false, gameId: null });
+        await onDisconnect(myPresenceRef).remove();
+
+        onValue(ref(db, "presence"), snap => {
+          onlineUsers = snap.val() || {};
+          updateOnlineList();
+
+          const me = onlineUsers[myId];
+          if (me && me.inGame && me.gameId && !currentGameId) {
+            subscribeToGame(me.gameId);
+          }
+        }, err => {
+          setStatus("Errore lettura presenza: " + err.message, true);
+        });
+
+        document.getElementById("findMatchBtn").addEventListener("click", async () => {
+          const candidates = Object.keys(onlineUsers).filter(
+            id => id !== myId && !onlineUsers[id]?.inGame
+          );
+          if (candidates.length === 0) return;
+
+          const randomOpponent = candidates[Math.floor(Math.random() * candidates.length)];
+          const gameId = "game_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6);
+          const iAmWhite = Math.random() < 0.5;
+
+          const initialGame = {
+            white: iAmWhite ? myId : randomOpponent,
+            black: iAmWhite ? randomOpponent : myId,
+            turn: "w",
+            board: generateRandomBoard(),
+            createdAt: Date.now()
+          };
+
+          await set(ref(db, "games/" + gameId), initialGame);
+          await update(ref(db, "presence/" + randomOpponent), { inGame: true, gameId });
+          subscribeToGame(gameId);
+        });
+
+        setStatus("Connesso — in attesa di un altro giocatore...");
+      } catch (err) {
+        setStatus("Errore Firebase: " + err.message, true);
+      }
     }
 
     initMultiplayer();
